@@ -1,0 +1,228 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Responses: {{ form.title }} - pyForms{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h1 class="h3 mb-1">{{ form.title }}</h1>
+                            <p class="text-muted mb-0">View and analyze form responses</p>
+                        </div>
+                        <div class="col-auto">
+                            <a href="{% url 'edit_form' form.uuid %}" class="btn btn-outline-secondary me-2">
+                                <i class="bi bi-arrow-left me-1"></i>Back to Form
+                            </a>
+                            <a href="{% url 'form_analytics' form.uuid %}" class="btn btn-info">
+                                <i class="bi bi-bar-chart me-1"></i>Analytics
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body text-center">
+                            <h2 class="mb-0">{{ total_responses }}</h2>
+                            <small>Total Responses</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h2 class="mb-0">{{ questions.count }}</h2>
+                            <small>Questions</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h2 class="mb-0">{% if total_responses > 0 %}100%{% else %}0%{% endif %}</h2>
+                            <small>Completion Rate</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body text-center">
+                            <h2 class="mb-0">{% if responses %}{{ responses.0.submitted_at|date:"M d" }}{% else %}—{% endif %}</h2>
+                            <small>Latest Response</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if responses %}
+            <!-- Responses Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-table me-2"></i>Response Details
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    {% if form.collect_email %}
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                    {% endif %}
+                                    <th>Submitted</th>
+                                    {% for question in questions %}
+                                        <th>{{ question.text|truncatechars:25 }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for response in responses %}
+                                <tr>
+                                    <td><strong>#{{ response.id }}</strong></td>
+                                    {% if form.collect_email %}
+                                        <td>{{ response.respondent_name|default:"Anonymous" }}</td>
+                                        <td>{{ response.respondent_email|default:"Not provided" }}</td>
+                                    {% endif %}
+                                    <td>
+                                        {{ response.submitted_at|date:"M d, Y" }}<br>
+                                        <small class="text-muted">{{ response.submitted_at|time:"g:i A" }}</small>
+                                    </td>
+                                    {% for question in questions %}
+                                    <td>
+                                        {% for answer in response.answers.all %}
+                                            {% if answer.question.id == question.id %}
+                                                <span data-bs-toggle="tooltip" title="{{ answer.display_answer }}">
+                                                    {{ answer.display_answer|truncatechars:30 }}
+                                                </span>
+                                            {% endif %}
+                                        {% empty %}
+                                            <span class="text-muted">—</span>
+                                        {% endfor %}
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            {% if responses.has_other_pages %}
+            <nav aria-label="Responses pagination" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if responses.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">First</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ responses.previous_page_number }}">Previous</a>
+                        </li>
+                    {% endif %}
+                    
+                    <li class="page-item active">
+                        <span class="page-link">Page {{ responses.number }} of {{ responses.paginator.num_pages }}</span>
+                    </li>
+                    
+                    {% if responses.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ responses.next_page_number }}">Next</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ responses.paginator.num_pages }}">Last</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <!-- Empty State -->
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-inbox text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3">No responses yet</h4>
+                    <p class="text-muted">Once people start filling out your form, their responses will appear here.</p>
+                    
+                    {% if form.is_published %}
+                        <div class="mt-3">
+                            <button class="btn btn-primary" onclick='copyFormLink("{% url 'form_public_view' form.uuid %}")'>
+                                <i class="bi bi-link me-2"></i>Copy Form Link
+                            </button>
+                            <a href="{% url 'form_public_view' form.uuid %}" class="btn btn-outline-info" target="_blank">
+                                <i class="bi bi-eye me-2"></i>View Form
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning mt-3">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Your form is not published yet. 
+                            <a href="{% url 'publish_form' form.uuid %}" class="alert-link">Publish it</a> to start collecting responses.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+// Copy form link to clipboard
+function copyFormLink(formPath) {
+    const fullUrl = window.location.origin + formPath;
+    
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(fullUrl).then(function() {
+            alert('Form link copied to clipboard!');
+        }).catch(function() {
+            fallbackCopyTextToClipboard(fullUrl);
+        });
+    } else {
+        fallbackCopyTextToClipboard(fullUrl);
+    }
+}
+
+function fallbackCopyTextToClipboard(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        document.execCommand('copy');
+        alert('Form link copied to clipboard!');
+    } catch (err) {
+        alert('Could not copy link. Please copy manually: ' + text);
+    }
+    
+    document.body.removeChild(textArea);
+}
+</script>
+{% endblock %}

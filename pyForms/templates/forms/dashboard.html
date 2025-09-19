@@ -1,0 +1,329 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Dashboard - pyForms{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Welcome Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-6 fw-bold mb-1">Welcome back, {{ user.get_full_name|default:user.username }}! 👋</h1>
+                    <p class="text-muted">Manage your forms and view responses from your dashboard</p>
+                </div>
+                <div>
+                    <a href="{% url 'create_form' %}" class="btn btn-primary btn-lg">
+                        <i class="bi bi-plus-circle me-2"></i>Create New Form
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-subtitle mb-2 text-white-50">Total Forms</h6>
+                            <h2 class="card-title mb-0 fw-bold">{{ total_forms }}</h2>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-clipboard-data fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-subtitle mb-2 text-white-50">Total Responses</h6>
+                            <h2 class="card-title mb-0 fw-bold">{{ total_responses }}</h2>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-people fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card bg-warning text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-subtitle mb-2 text-white-50">Published Forms</h6>
+                            <h2 class="card-title mb-0 fw-bold">{{ published_forms }}</h2>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-broadcast fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forms Grid -->
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3>Your Forms</h3>
+                {% if forms.has_other_pages %}
+                <small class="text-muted">
+                    Showing {{ forms.start_index }}-{{ forms.end_index }} of {{ forms.paginator.count }} forms
+                </small>
+                {% endif %}
+            </div>
+
+            {% if forms %}
+            <div class="row">
+                {% for form in forms %}
+                <div class="col-md-4 col-lg-3 mb-4">
+                    <div class="card form-card h-100">
+                        <div class="card-header bg-transparent border-0 pb-0">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <span class="badge bg-{% if form.is_published %}success{% else %}secondary{% endif %} mb-2">
+                                    {% if form.is_published %}
+                                        <i class="bi bi-broadcast me-1"></i>Published
+                                    {% else %}
+                                        <i class="bi bi-eye-slash me-1"></i>Draft
+                                    {% endif %}
+                                </span>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                        <i class="bi bi-three-dots"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="{% url 'edit_form' form.uuid %}">
+                                            <i class="bi bi-pencil me-2"></i>Edit
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="{% url 'view_responses' form.uuid %}">
+                                            <i class="bi bi-eye me-2"></i>View Responses
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="{% url 'form_analytics' form.uuid %}">
+                                            <i class="bi bi-bar-chart me-2"></i>Analytics
+                                        </a></li>
+                                        {% if form.is_published %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="{% url 'form_public_view' form.uuid %}" target="_blank">
+                                            <i class="bi bi-eye me-2"></i>View Public Form
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" onclick='copyFormLink("{% url 'form_public_view' form.uuid %}")'>
+                                            <i class="bi bi-link me-2"></i>Copy Link
+                                        </a></li>
+                                        {% endif %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteForm('{{ form.uuid }}', '{{ form.title }}')">
+                                            <i class="bi bi-trash me-2"></i>Delete
+                                        </a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-body">
+                            <h5 class="card-title">{{ form.title|truncatechars:30 }}</h5>
+                            <p class="card-text text-muted">
+                                {% if form.description %}
+                                    {{ form.description|truncatechars:80 }}
+                                {% else %}
+                                    No description provided.
+                                {% endif %}
+                            </p>
+
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Questions</small>
+                                    <span class="fw-bold">{{ form.questions.count }}</span>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Responses</small>
+                                    <span class="fw-bold">{{ form.response_count }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-footer bg-transparent border-0">
+                            <div class="d-grid gap-2">
+                                <a href="{% url 'edit_form' form.uuid %}" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-pencil me-1"></i>Edit Form
+                                </a>
+                                {% if form.is_published %}
+                                <a href="{% url 'form_public_view' form.uuid %}" class="btn btn-outline-info btn-sm" target="_blank">
+                                    <i class="bi bi-eye me-1"></i>View Public
+                                </a>
+                                {% endif %}
+                            </div>
+                            <small class="text-muted d-block text-center mt-2">
+                                Created {{ form.created_at|timesince }} ago
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if forms.has_other_pages %}
+            <nav aria-label="Forms pagination">
+                <ul class="pagination justify-content-center">
+                    {% if forms.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">First</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ forms.previous_page_number }}">Previous</a>
+                        </li>
+                    {% endif %}
+
+                    {% for page_num in forms.paginator.page_range %}
+                        {% if page_num == forms.number %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                        {% elif page_num > forms.number|add:'-3' and page_num < forms.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if forms.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ forms.next_page_number }}">Next</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ forms.paginator.num_pages }}">Last</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <!-- Empty State -->
+            <div class="text-center py-5">
+                <i class="bi bi-clipboard-data text-muted" style="font-size: 4rem;"></i>
+                <h3 class="mt-3">No forms yet!</h3>
+                <p class="text-muted mb-4">Create your first form to get started with pyForms.</p>
+                <a href="{% url 'create_form' %}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-plus-circle me-2"></i>Create Your First Form
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Delete Form Modal -->
+<div class="modal fade" id="deleteFormModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Form</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete "<span id="formTitle"></span>"?</p>
+                <p class="text-muted small">This action cannot be undone. All responses will be permanently deleted.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteFormForm" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Delete Form</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deleteForm(formUuid, formTitle) {
+    document.getElementById('formTitle').textContent = formTitle;
+    document.getElementById('deleteFormForm').action = `/delete/${formUuid}/`;
+    new bootstrap.Modal(document.getElementById('deleteFormModal')).show();
+}
+
+// Copy form link to clipboard
+function copyFormLink(formPath) {
+    const fullUrl = window.location.origin + formPath;
+    
+    // Try modern clipboard API first
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(fullUrl).then(function() {
+            showToast('Form link copied to clipboard!', 'success');
+        }).catch(function() {
+            fallbackCopyTextToClipboard(fullUrl);
+        });
+    } else {
+        // Fallback for older browsers
+        fallbackCopyTextToClipboard(fullUrl);
+    }
+}
+
+// Fallback copy function for older browsers
+function fallbackCopyTextToClipboard(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        document.execCommand('copy');
+        showToast('Form link copied to clipboard!', 'success');
+    } catch (err) {
+        console.error('Could not copy text: ', err);
+        showToast('Could not copy link. Please copy manually: ' + text, 'error');
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+// Show toast notification
+function showToast(message, type) {
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'success' ? 'success' : 'danger'} toast-notification`;
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        max-width: 350px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+    toast.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-circle'} me-2"></i>
+            <div>${message}</div>
+            <button type="button" class="btn-close ms-auto" onclick="this.parentElement.parentElement.remove()"></button>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    }, 3000);
+}
+</script>
+{% endblock %}

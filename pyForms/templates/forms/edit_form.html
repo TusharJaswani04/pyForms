@@ -1,0 +1,334 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Edit: {{ form.title }} - pyForms{% endblock %}
+
+{% block extra_head %}
+<style>
+.question-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.question-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.question-card .card {
+    border: none;
+}
+
+.question-title-input {
+    border: none;
+    border-bottom: 1px solid #ddd;
+    border-radius: 0;
+    font-size: 1.1rem;
+}
+
+.question-title-input:focus {
+    box-shadow: none;
+    border-color: #4285f4;
+}
+
+.question-actions {
+    background-color: #f8f9fa;
+    margin: 0 -1rem -1rem -1rem;
+    padding: 1rem;
+    border-radius: 0 0 8px 8px;
+}
+
+.option-item .input-group-text {
+    background: transparent;
+    border: none;
+    color: #666;
+}
+
+.option-item .form-control {
+    border: none;
+    border-bottom: 1px solid #ddd;
+    border-radius: 0;
+}
+
+.add-question-section {
+    text-align: center;
+    padding: 2rem 0;
+}
+
+.floating-add-btn {
+    position: fixed;
+    right: 2rem;
+    bottom: 2rem;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 1000;
+}
+
+.form-header-editable {
+    border: none;
+    background: transparent;
+    resize: none;
+}
+
+.form-header-editable:focus {
+    outline: 1px solid #4285f4;
+    border-radius: 4px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% url 'form_public_view' form.uuid as public_path %}
+{% with request.scheme|add:"://"|add:request.get_host|add:public_path as full_url %}
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="sticky-top" style="top: 20px;">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Form Actions</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'publish_form' form.uuid %}" class="btn btn-{% if form.is_published %}warning{% else %}success{% endif %}">
+                                <i class="bi bi-{% if form.is_published %}eye-slash{% else %}broadcast{% endif %} me-1"></i>
+                                {% if form.is_published %}Unpublish{% else %}Publish{% endif %}
+                            </a>
+                            
+                            {% if form.is_published %}
+                            <button type="button" class="btn btn-info" onclick='copyToClipboard("{{ full_url }}")'>
+                                <i class="bi bi-link me-1"></i>Copy Link
+                            </button>
+                            {% endif %}
+                            
+                            <a href="{% url 'view_responses' form.uuid %}" class="btn btn-outline-primary">
+                                <i class="bi bi-eye me-1"></i>View Responses ({{ form.response_count }})
+                            </a>
+                            
+                            <a href="{% url 'form_analytics' form.uuid %}" class="btn btn-outline-info">
+                                <i class="bi bi-bar-chart me-1"></i>Analytics
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Settings -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Settings</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="collectEmail"
+                                   {% if form.collect_email %}checked{% endif %} onchange="updateFormSetting('collect_email', this.checked)">
+                            <label class="form-check-label" for="collectEmail">
+                                Collect email addresses
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="allowMultiple"
+                                   {% if form.allow_multiple_responses %}checked{% endif %} onchange="updateFormSetting('allow_multiple_responses', this.checked)">
+                            <label class="form-check-label" for="allowMultiple">
+                                Allow multiple responses
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="emailNotifications"
+                                   {% if form.send_email_notifications %}checked{% endif %} onchange="updateFormSetting('send_email_notifications', this.checked)">
+                            <label class="form-check-label" for="emailNotifications">
+                                Email notifications
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <!-- Form Header -->
+            <div class="card mb-4" style="border: 2px solid #673ab7;">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <textarea class="form-control form-header-editable form-title-input h1" rows="1" 
+                                  placeholder="Form title">{{ form.title }}</textarea>
+                    </div>
+                    <div class="mb-0">
+                        <textarea class="form-control form-header-editable form-description-input" rows="2" 
+                                  placeholder="Form description">{{ form.description|default:"" }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CSRF for AJAX -->
+            <form id="csrfForm">{% csrf_token %}</form>
+
+            <!-- Questions List -->
+            <div id="questionsList">
+                {% for question in questions %}
+                <div class="question-card mb-3" data-question-id="{{ question.id }}">
+                    <div class="card">
+                        <div class="card-body">
+                            <!-- Question Editor -->
+                            <div class="question-editor">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="mb-3">
+                                            <input type="text" class="form-control form-control-lg question-title-input" 
+                                                   placeholder="Question" value="{{ question.text }}">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-select question-type-select">
+                                            <option value="short_text" {% if question.question_type == 'short_text' %}selected{% endif %}>Short answer</option>
+                                            <option value="long_text" {% if question.question_type == 'long_text' %}selected{% endif %}>Paragraph</option>
+                                            <option value="multiple_choice" {% if question.question_type == 'multiple_choice' %}selected{% endif %}>Multiple choice</option>
+                                            <option value="checkboxes" {% if question.question_type == 'checkboxes' %}selected{% endif %}>Checkboxes</option>
+                                            <option value="dropdown" {% if question.question_type == 'dropdown' %}selected{% endif %}>Dropdown</option>
+                                            <option value="linear_scale" {% if question.question_type == 'linear_scale' %}selected{% endif %}>Linear scale</option>
+                                            <option value="date" {% if question.question_type == 'date' %}selected{% endif %}>Date</option>
+                                            <option value="time" {% if question.question_type == 'time' %}selected{% endif %}>Time</option>
+                                            <option value="file_upload" {% if question.question_type == 'file_upload' %}selected{% endif %}>File upload</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <!-- Options Section -->
+                                <div class="question-options" {% if question.question_type not in 'multiple_choice,checkboxes,dropdown' %}style="display: none;"{% endif %}>
+                                    {% for option in question.options.all %}
+                                    <div class="option-item mb-2">
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <i class="bi {% if question.question_type == 'multiple_choice' %}bi-circle{% elif question.question_type == 'checkboxes' %}bi-square{% else %}bi-chevron-down{% endif %}"></i>
+                                            </span>
+                                            <input type="text" class="form-control" value="{{ option.text }}">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="removeOption(this)">
+                                                <i class="bi bi-x"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                    
+                                    {% if not question.options.all and question.question_type in 'multiple_choice,checkboxes,dropdown' %}
+                                    <div class="option-item mb-2">
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="bi bi-circle"></i></span>
+                                            <input type="text" class="form-control" placeholder="Option 1">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="removeOption(this)">
+                                                <i class="bi bi-x"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="option-item mb-2">
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="bi bi-circle"></i></span>
+                                            <input type="text" class="form-control" placeholder="Option 2">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="removeOption(this)">
+                                                <i class="bi bi-x"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="add-option">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addNewOption(this)">
+                                            <i class="bi bi-plus me-1"></i>Add option
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Linear Scale Section -->
+                                <div class="linear-scale-section" {% if question.question_type != 'linear_scale' %}style="display: none;"{% endif %}>
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <label class="form-label">From</label>
+                                            <select class="form-select scale-min">
+                                                <option value="0" {% if question.scale_min == 0 %}selected{% endif %}>0</option>
+                                                <option value="1" {% if question.scale_min == 1 or not question.scale_min %}selected{% endif %}>1</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">To</label>
+                                            <select class="form-select scale-max">
+                                                <option value="5" {% if question.scale_max == 5 or not question.scale_max %}selected{% endif %}>5</option>
+                                                <option value="10" {% if question.scale_max == 10 %}selected{% endif %}>10</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <input type="text" class="form-control scale-min-label" placeholder="Label (optional)" 
+                                                   value="{{ question.scale_min_label|default:'' }}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="text" class="form-control scale-max-label" placeholder="Label (optional)" 
+                                                   value="{{ question.scale_max_label|default:'' }}">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Help Text -->
+                                <div class="mt-3">
+                                    <input type="text" class="form-control help-text-input" placeholder="Description (optional)" 
+                                           value="{{ question.help_text|default:'' }}">
+                                </div>
+                                
+                                <!-- Question Actions -->
+                                <div class="question-actions mt-3 pt-3 border-top">
+                                    <div class="row align-items-center">
+                                        <div class="col">
+                                            <div class="form-check">
+                                                <input class="form-check-input required-checkbox" type="checkbox" 
+                                                       id="required-{{ question.id }}" {% if question.is_required %}checked{% endif %}>
+                                                <label class="form-check-label" for="required-{{ question.id }}">Required</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <div class="btn-group">
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="duplicateQuestion(this)" title="Duplicate">
+                                                    <i class="bi bi-files"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteQuestion(this)" title="Delete">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Add Question Section -->
+            <div class="add-question-section">
+                <button type="button" class="btn btn-outline-primary btn-lg" id="add-question-btn">
+                    <i class="bi bi-plus-circle me-2"></i>Add question
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Floating Add Button -->
+<button type="button" class="btn btn-primary floating-add-btn" title="Add question">
+    <i class="bi bi-plus" style="font-size: 1.5rem;"></i>
+</button>
+
+<script>
+// Set global form UUID for JavaScript
+window.formUuid = '{{ form.uuid }}';
+</script>
+
+{% endwith %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/form_builder.js' %}"></script>
+{% endblock %}
